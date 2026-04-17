@@ -1,259 +1,337 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
-  <head>
+<head>
     <meta charset="UTF-8">
-    <title>Controle de Pagamentos - Luiz Alberto</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Boletos - Organizado</title>
     <style>
-      body {
-        font-family: 'Segoe UI', Arial, sans-serif;
-        background-color: #f0f2f5;
-        padding: 20px;
-      }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background-color: #f0f2f5; 
+            display: flex; 
+            justify-content: center; 
+            padding: 20px; 
+        }
+        .container { 
+            width: 100%; 
+            max-width: 550px; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        }
+        h2 { text-align: center; color: #1a1a1a; margin-top: 0; }
+        
+        .input-group { 
+            border-bottom: 2px solid #eee; 
+            padding-bottom: 20px; 
+            margin-bottom: 20px; 
+        }
+        .input-row { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 10px; 
+        }
+        input { 
+            flex-grow: 1; 
+            padding: 12px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            outline: none; 
+        }
+        .btn-add { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
 
-      .container {
-        max-width: 1000px;
-        margin: auto;
-        background: white;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-      }
+        .lista { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+        }
+        .boleto-item { 
+            border: 1px solid #e0e0e0; 
+            padding: 15px; 
+            border-radius: 10px; 
+            background: #fff; 
+            transition: all 0.2s; 
+        }
+        .boleto-item.pago-bg { 
+            background: #e8f5e9; 
+            border-color: #a5d6a7; 
+            opacity: 0.7; 
+        }
+        
+        .nome-empresa { 
+            font-weight: bold; 
+            color: #444; 
+            text-transform: uppercase; 
+            font-size: 13px; 
+            margin-bottom: 5px; 
+            display: block; 
+        }
+        
+        /* NOVO: Container para código + botão de copiar ao lado */
+        .codigo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .codigo { 
+            font-family: 'Courier New', monospace; 
+            background: #f8f9fa; 
+            padding: 12px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            word-break: break-all; 
+            flex: 1;
+            border: 1px dashed #adb5bd; 
+            color: #2c3e50; 
+            font-size: 14px;
+        }
+        .codigo:hover { 
+            background: #eef2ff; 
+            border-color: #007bff; 
+        }
 
-      h2 {
-        color: #1a73e8;
-        border-bottom: 3px solid #1a73e8;
-        padding-bottom: 10px;
-        margin-bottom: 25px;
-        text-align: center;
-      }
+        .btn-copy {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
 
-      .data-sessao {
-        background: #1a73e8;
-        color: white;
-        padding: 12px;
-        margin-top: 30px;
-        font-weight: bold;
-        border-radius: 6px;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-        background: #fff;
-      }
-
-      th,
-      td {
-        padding: 15px;
-        border-bottom: 1px solid #eee;
-        text-align: left;
-        font-size: 14px;
-      }
-
-      th {
-        background-color: #f8f9fa;
-        color: #555;
-        text-transform: uppercase;
-        font-size: 0.8em;
-      }
-
-      .barcode {
-        font-family: 'Courier New', monospace;
-        font-size: 0.9em;
-        color: #444;
-        background: #f1f3f4;
-        padding: 6px 10px;
-        border-radius: 4px;
-        display: block;
-        word-break: break-all;
-      }
-
-      .btn-copiar {
-        background: #28a745;
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        width: 100%;
-        transition: 0.2s;
-      }
-
-      .btn-copiar:hover {
-        background: #218838;
-        transform: translateY(-1px);
-      }
-
-      .pago-checkbox {
-        width: 22px;
-        height: 22px;
-        cursor: pointer;
-      }
-
-      .linha-paga {
-        background-color: #e6ffed !important;
-        opacity: 0.6;
-      }
-
-      .linha-paga .barcode {
-        text-decoration: line-through;
-      }
-
-      #temp-copy {
-        position: absolute;
-        left: -9999px;
-      }
-
-      .toast {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #333;
-        color: white;
-        padding: 12px 25px;
-        border-radius: 8px;
-        display: none;
-        z-index: 1000;
-      }
+        .controles { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .btn-pago { 
+            padding: 10px 18px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            background: #6c757d; 
+            color: white; 
+            min-width: 100px;
+        }
+        .btn-pago.pago { 
+            background: #2e7d32; 
+        }
+        
+        .toast {
+            position: fixed; 
+            top: 20px; 
+            background: #333; 
+            color: white; 
+            padding: 12px 25px; 
+            border-radius: 50px; 
+            display: none; 
+            z-index: 1000;
+        }
     </style>
-    <script type="text/javascript" src="./index.js" defer=""></script>
-    <link rel="stylesheet" href="./index.css">
-  </head>
+</head>
+<body>
 
-  <body>
-
-    <div class="container">
-      <h2>📋 Lista de Pagamentos Atualizada</h2>
-      <input type="text" id="temp-copy">
-
-      <div class="data-sessao">VENCIMENTO: 04/04/2026</div>
-      <table>
-        <thead>
-          <tr>
-            <th width="25%">Beneficiário</th>
-            <th>Código de Barras</th>
-            <th width="10%">Ação</th>
-            <th width="5%">Pago</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>MULTIGRAOS NATURA</strong></td>
-            <td><span class="barcode" id="b1">03399062081770000000700287701015114060000010440</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b1')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="data-sessao">VENCIMENTO: 05/04/2026</div>
-      <table>
-        <tbody>
-          <tr>
-            <td width="25%"><strong>AGENCIA COSMICA</strong></td>
-            <td><span class="barcode" id="b2">40192026079100000000900001046804814070000150000</span></td>
-            <td width="10%"><button class="btn-copiar" onclick="copiar('b2')">COPIAR</button></td>
-            <td width="5%"><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>4 ELEMENTOS</strong></td>
-            <td><span class="barcode" id="b3">75691300370137055280200630950012314070000052890</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b3')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>COMPESA</strong></td>
-            <td><span class="barcode" id="b4">828000000001908800183390053782434011032026700032</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b4')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>CILO</strong></td>
-            <td><span class="barcode" id="b5">23793206059608600000517049052503914070000022000</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b5')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="data-sessao">VENCIMENTO: 06/04/2026</div>
-      <table>
-        <tbody>
-          <tr>
-            <td width="25%"><strong>AJS CAPITAL</strong></td>
-            <td><span class="barcode" id="b6">75691429330108939940400720410018414080000046973</span></td>
-            <td width="10%"><button class="btn-copiar" onclick="copiar('b6')">COPIAR</button></td>
-            <td width="5%"><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>APIARIO ZUMBI</strong></td>
-            <td><span class="barcode" id="b7">23792992059605100000604003635507714080000051420</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b7')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>DISTRIB. NATUREZA</strong></td>
-            <td><span class="barcode" id="b8">74891125290111570307471240881004614080000025350</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b8')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>FB</strong></td>
-            <td><span class="barcode" id="b9">40390000074346371301677778799013414080000030475</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b9')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-          <tr>
-            <td><strong>MULTIGRAOS</strong></td>
-            <td><span class="barcode" id="b10">03399062081770000000700391301017814080000036100</span></td>
-            <td><button class="btn-copiar" onclick="copiar('b10')">COPIAR</button></td>
-            <td><input type="checkbox" class="pago-checkbox" onchange="marcar(this)"></td>
-          </tr>
-        </tbody>
-      </table>
+<div class="container">
+    <h2>📋 Lista de Pagamentos</h2>
+    
+    <div class="input-group">
+        <small>Adicionar Novo:</small>
+        <div class="input-row">
+            <input type="text" id="novoNome" placeholder="Nome (ex: MELZEM)">
+            <input type="text" id="novoCod" placeholder="Código do boleto">
+            <button class="btn-add" onclick="adicionarManual()">+</button>
+        </div>
     </div>
 
-    <div id="toast" class="toast">✅ Código copiado!</div>
+    <div id="lista-boletos" class="lista"></div>
+</div>
 
-    <script>
-      function copiar(id) {
-        const texto = document.getElementById(id).innerText;
-        const input = document.getElementById('temp-copy');
+<div id="toast" class="toast">✅ Código copiado!</div>
 
-        input.value = texto;
-        input.select();
-        input.setSelectionRange(0, 99999);
+<!-- 🔥 Firebase scripts (compat version para funcionar direto no HTML) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-        try {
-          document.execCommand('copy');
-          mostrarAviso();
-        } catch (err) {
-          alert("Erro ao copiar. Tente selecionar o texto.");
+<script>
+    // ==================== DADOS INICIAIS (serão salvos no Firebase só na primeira vez) ====================
+    const dadosIniciais = [
+        { nome: "MELZEM", cod: "34191587007001701874707161595004514200000065472" },
+        { nome: "CELESTE", cod: "03399831815650000000793232901012614220000032020" },
+        { nome: "MULTIGRAOS", cod: "03399062081770000000700391501012314220000036100" },
+        { nome: "MULTIGRAOS", cod: "50990000010000000000000079322699614220000150780" },
+        { nome: "MULTIGRAOS", cod: "50990000010000000000000081429201214220000036575" },
+        { nome: "BENTO ( CAFE OXENTE )", cod: "26090609301789077069045800000007914220000051500" },
+        { nome: "RECIFE DOCE", cod: "10499867795900010004600009144106314220000021126" },
+        { nome: "SB INDUSTRIA", cod: "34191570070045193986219989130000814220000026450" },
+        { nome: "URBANO AGRO", cod: "34191090087128978293183226620009914220000084617" }
+    ];
+
+    // ==================== CONFIGURAÇÃO DO FIREBASE (seu banco) ====================
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBdK9I-jtg9ujTc9Xsxr-hnPfkId4wIU",
+      authDomain: "pdv1-77632.firebaseapp.com",
+      databaseURL: "https://pdv1-77632-default-rtdb.firebaseio.com",
+      projectId: "pdv1-77632",
+      storageBucket: "pdv1-77632.firebasestorage.app",
+      messagingSenderId: "246033791117",
+      appId: "1:246033791117:web:7b70b511ea8d8c5ba1cac4",
+      measurementId: "G-NTG13SG6VM"
+    };
+
+    // Inicializa Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const boletosRef = db.ref('boletos');   // caminho no banco onde os boletos ficam salvos
+
+    // ==================== FUNÇÕES ====================
+
+    function criarCard(obj, id) {
+        const div = document.createElement('div');
+        div.className = `boleto-item ${obj.pago ? 'pago-bg' : ''}`;
+        div.innerHTML = `
+            <span class="nome-empresa">${obj.nome}</span>
+            
+            <!-- NOVO: Código + botão de copiar AO LADO -->
+            <div class="codigo-container">
+                <span class="codigo" onclick="copiarTexto(this)">${obj.cod}</span>
+                <button class="btn-copy" onclick="copiarCodigo('${obj.cod}')">
+                    📋 Copiar
+                </button>
+            </div>
+
+            <div class="controles">
+                <small style="color: #888;">Toque no código ou use o botão para copiar</small>
+                <button class="btn-pago ${obj.pago ? 'pago' : ''}" 
+                        onclick="togglePago(this, this.closest('.boleto-item'), '${id}')">
+                    ${obj.pago ? '✓ PAGO' : 'Pendente'}
+                </button>
+            </div>
+        `;
+        return div;
+    }
+
+    // Renderiza a lista completa vinda do Firebase (chamado automaticamente)
+    function renderBoletos(snapshot) {
+        const listaDiv = document.getElementById('lista-boletos');
+        listaDiv.innerHTML = '';
+
+        const data = snapshot.val() || {};
+        
+        // Ordena pelos IDs do Firebase (mais antigos primeiro - fica igual à ordem original)
+        const sortedKeys = Object.keys(data).sort();
+        
+        sortedKeys.forEach(key => {
+            const item = data[key];
+            const card = criarCard(item, key);
+            listaDiv.appendChild(card);
+        });
+    }
+
+    // Adiciona novo boleto e salva direto no Firebase
+    function adicionarManual() {
+        const nomeInput = document.getElementById('novoNome');
+        const codInput = document.getElementById('novoCod');
+        
+        const nome = (nomeInput.value.trim().toUpperCase() || 'SEM NOME');
+        const cod = codInput.value.trim();
+
+        if (cod !== "") {
+            const novoBoleto = {
+                nome: nome,
+                cod: cod,
+                pago: false
+            };
+
+            boletosRef.push(novoBoleto).then(() => {
+                // limpa campos
+                nomeInput.value = "";
+                codInput.value = "";
+                // o listener do Firebase já atualiza a tela automaticamente
+            }).catch(err => {
+                console.error("Erro ao adicionar:", err);
+                alert("Erro ao salvar no banco. Verifique sua conexão.");
+            });
         }
-      }
+    }
 
-      function mostrarAviso() {
-        const toast = document.getElementById('toast');
-        toast.style.display = 'block';
-        setTimeout(() => {
-          toast.style.display = 'none';
-        }, 2000);
-      }
+    // Copiar pelo toque no código (mantido do original)
+    function copiarTexto(elemento) {
+        navigator.clipboard.writeText(elemento.innerText).then(() => {
+            const toast = document.getElementById('toast');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 1500);
+        });
+    }
 
-      function marcar(el) {
-        const linha = el.closest('tr');
-        if (el.checked) {
-          linha.classList.add('linha-paga');
-        } else {
-          linha.classList.remove('linha-paga');
+    // NOVO: Copiar pelo botão ao lado do código
+    function copiarCodigo(cod) {
+        navigator.clipboard.writeText(cod).then(() => {
+            const toast = document.getElementById('toast');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 1500);
+        });
+    }
+
+    // Alterna PAGO / PENDENTE e salva no Firebase (status fica salvo para sempre)
+    function togglePago(botao, card, id) {
+        const atualPago = botao.classList.contains('pago');
+        const novoPago = !atualPago;
+
+        // Atualização imediata na tela (otimista)
+        botao.classList.toggle('pago', novoPago);
+        card.classList.toggle('pago-bg', novoPago);
+        botao.innerText = novoPago ? '✓ PAGO' : 'Pendente';
+
+        // Salva no Firebase
+        boletosRef.child(id).update({ pago: novoPago })
+            .catch(error => {
+                console.error("Erro ao salvar status:", error);
+                // Reverte se deu erro
+                botao.classList.toggle('pago', atualPago);
+                card.classList.toggle('pago-bg', atualPago);
+                botao.innerText = atualPago ? '✓ PAGO' : 'Pendente';
+                alert("Erro ao salvar no banco. Tente novamente.");
+            });
+    }
+
+    // ==================== INICIALIZAÇÃO ====================
+    // 1. Verifica se o banco está vazio → carrega os dados iniciais (só na primeira vez)
+    boletosRef.once('value').then((snapshot) => {
+        if (!snapshot.exists() || Object.keys(snapshot.val() || {}).length === 0) {
+            console.log("📦 Salvando dados iniciais no Firebase...");
+            dadosIniciais.forEach(item => {
+                boletosRef.push({
+                    nome: item.nome,
+                    cod: item.cod,
+                    pago: false
+                });
+            });
         }
-      }
-    </script>
+        
+        // 2. Ativa o listener em tempo real (qualquer mudança no banco atualiza a tela)
+        boletosRef.on('value', renderBoletos);
+    });
 
+    // Mensagem de boas-vindas no console (para você saber que está tudo certo)
+    console.log("%c✅ Sistema de Boletos com Firebase carregado com sucesso!", "color: #2e7d32; font-weight: bold");
+</script>
 
-  </body>
-
+</body>
 </html>
