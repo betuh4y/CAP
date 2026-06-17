@@ -372,8 +372,11 @@
       <input type="text" id="newProductBarcode" placeholder="Código">
       <label>Nome</label>
       <input type="text" id="newProductName" placeholder="Nome do produto">
-      <label>Preço (R$)</label>
-      <input type="number" id="newProductPrice" placeholder="0,00" step="0.01">
+      <label>Preço de Custo (R$)</label>
+      <input type="number" id="newProductCost" placeholder="0,00" step="0.01" oninput="calcMargemCadastro()">
+      <label>Preço de Venda (R$)</label>
+      <input type="number" id="newProductPrice" placeholder="0,00" step="0.01" oninput="calcMargemCadastro()">
+      <div id="margemCadastroInfo" style="display:none;background:var(--green-light);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;color:var(--green);margin-bottom:10px;font-weight:600;"></div>
       <label>Unidade</label>
       <select id="newProductUnit">
         <option value="unidade">Unidade</option>
@@ -407,6 +410,19 @@
         <div class="empty"><div class="empty-icon">📦</div><p>Carregando produtos...</p></div>
       </div>
       <button class="btn btn-primary" style="margin-top:12px;" onclick="saveStockAdjustments()">💾 Salvar Alterações de Estoque</button>
+    </div>
+
+    <!-- ── AJUSTE DE PREÇOS ── -->
+    <div class="section-header" style="margin-top:4px;">
+      <h2>💰 Ajustar Preços</h2>
+    </div>
+    <div class="card">
+      <div class="card-title">Alterar preço de custo e venda</div>
+      <input type="text" id="priceSearchInput" placeholder="🔍 Buscar produto..." oninput="renderPriceAdjust()" style="margin-bottom:12px;">
+      <div id="priceAdjustList">
+        <div class="empty"><div class="empty-icon">💰</div><p>Carregando produtos...</p></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="savePriceAdjustments()">💾 Salvar Alterações de Preços</button>
     </div>
   </div>
 
@@ -656,7 +672,7 @@
     document.getElementById(pageMap[page]).classList.add('active');
     document.getElementById('nav-' + page).classList.add('active');
     document.getElementById('pageTitle').textContent = titleMap[page];
-    if (page === 'products') { renderProductList(); renderStockAdjust(); }
+    if (page === 'products') { renderProductList(); renderStockAdjust(); renderPriceAdjust(); }
   };
 
   // ── CATEGORIES ──
@@ -804,6 +820,7 @@
       renderProductGrid();
       renderProductList();
       renderStockAdjust();
+      renderPriceAdjust();
       updateRanking();
     });
   }
@@ -846,13 +863,19 @@
       return;
     }
     card.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Código</th><th>Nome</th><th>Preço</th><th>Estoque</th><th></th></tr></thead>
+      <thead><tr><th>Código</th><th>Nome</th><th>Custo</th><th>Venda</th><th>Margem</th><th>Estoque</th><th></th></tr></thead>
       <tbody>${Object.entries(productsDatabase).map(([bc, p]) => {
         const low = (p.estoque||0) < (p.unidade==='kilo'?0.1:1);
+        const custo = p.precoCusto || 0;
+        const venda = p.preco || 0;
+        const margem = custo > 0 ? ((venda - custo) / custo * 100) : null;
+        const margemColor = margem === null ? 'var(--gray-400)' : margem >= 0 ? 'var(--green)' : 'var(--red)';
         return `<tr class="${low?'low-stock':''}">
           <td style="font-size:11px;color:var(--gray-600);">${bc}</td>
           <td><strong>${p.nome}</strong><br><span style="font-size:11px;color:var(--gray-400);">${categoriesDatabase[p.categoria]?.nome||''}</span></td>
-          <td style="white-space:nowrap;">${fmt(p.preco)}</td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--gray-600);">${custo > 0 ? fmt(custo) : '—'}</td>
+          <td style="white-space:nowrap;font-weight:600;">${fmt(venda)}</td>
+          <td style="white-space:nowrap;font-size:12px;font-weight:600;color:${margemColor};">${margem !== null ? margem.toFixed(1)+'%' : '—'}</td>
           <td style="white-space:nowrap;">${(p.estoque||0).toFixed(p.unidade==='kilo'?3:0)} ${p.unidade==='kilo'?'kg':'un'}</td>
           <td><div style="display:flex;flex-direction:column;gap:4px;">
             <button class="btn btn-sm btn-outline" onclick="editProduct('${bc}')">Editar</button>
@@ -931,7 +954,140 @@
     update(ref(db), updates).then(() => {
       toast(`✅ ${count} produto(s) atualizado(s)!`);
       pendingStockChanges = {};
-      // Re-carrega produtos do Firebase (igual ao original)
+      loadProducts();
+    }).catch(err => toast('Erro: ' + err.message));
+  };
+
+  // ── AJUSTE DE PREÇOS ──
+  let pendingPriceChanges = {};
+
+  window.renderPriceAdjust = () => {
+    const list = document.getElementById('priceAdjustList');
+    if (!list) return;
+    if (!productsDatabase || !Object.keys(productsDatabase).length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">💰</div><p>Nenhum produto cadastrado.</p></div>';
+      return;
+    }
+    const search = (document.getElementById('priceSearchInput')?.value || '').toLowerCase().trim();
+    let entries = Object.entries(productsDatabase);
+    if (search) entries = entries.filter(([, p]) => p.nome && p.nome.toLowerCase().includes(search));
+    entries.sort((a, b) => (a[1].nome || '').localeCompare(b[1].nome || '', 'pt-BR'));
+    if (!entries.length) {
+      list.innerHTML = '<div class="empty"><p>Nenhum produto encontrado.</p></div>';
+      return;
+    }
+    list.innerHTML = `<div class="table-wrap"><table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Custo Atual</th>
+          <th>Novo Custo</th>
+          <th>Venda Atual</th>
+          <th>Nova Venda</th>
+          <th>Margem</th>
+        </tr>
+      </thead>
+      <tbody>${entries.map(([bc, p]) => {
+        if (!p.nome) return '';
+        const custoAtual = (p.precoCusto || 0).toFixed(2);
+        const vendaAtual = (p.preco || 0).toFixed(2);
+        const pendCusto = pendingPriceChanges[bc]?.precoCusto;
+        const pendVenda = pendingPriceChanges[bc]?.preco;
+        const custoVal = pendCusto !== undefined ? pendCusto : custoAtual;
+        const vendaVal = pendVenda !== undefined ? pendVenda : vendaAtual;
+        const custo = parseFloat(custoVal) || 0;
+        const venda = parseFloat(vendaVal) || 0;
+        const margem = custo > 0 ? ((venda - custo) / custo * 100) : null;
+        const margemColor = margem === null ? 'var(--gray-400)' : margem >= 0 ? 'var(--green)' : 'var(--red)';
+        const margemTxt = margem !== null ? margem.toFixed(1) + '%' : '—';
+        return `<tr>
+          <td>
+            <strong style="font-size:13px;">${p.nome}</strong>
+            <br><span style="font-size:11px;color:var(--gray-400);">${bc}</span>
+          </td>
+          <td style="font-size:12px;color:var(--gray-600);white-space:nowrap;">
+            ${parseFloat(custoAtual) > 0 ? fmt(parseFloat(custoAtual)) : '—'}
+          </td>
+          <td>
+            <input
+              type="number" step="0.01" min="0"
+              value="${custoVal}"
+              placeholder="0,00"
+              data-bc="${bc}" data-field="precoCusto"
+              onchange="markPriceChange(this, '${bc}', 'precoCusto')"
+              oninput="updateMargemRow('${bc}')"
+              id="price-custo-${bc}"
+              style="width:85px;padding:5px 6px;border:1.5px solid ${pendCusto!==undefined?'var(--blue)':'var(--gray-200)'};border-radius:6px;font-size:13px;text-align:center;background:${pendCusto!==undefined?'var(--blue-light)':'var(--gray-50)'};"
+            >
+          </td>
+          <td style="font-size:12px;font-weight:600;white-space:nowrap;">
+            ${fmt(parseFloat(vendaAtual))}
+          </td>
+          <td>
+            <input
+              type="number" step="0.01" min="0"
+              value="${vendaVal}"
+              placeholder="0,00"
+              data-bc="${bc}" data-field="preco"
+              onchange="markPriceChange(this, '${bc}', 'preco')"
+              oninput="updateMargemRow('${bc}')"
+              id="price-venda-${bc}"
+              style="width:85px;padding:5px 6px;border:1.5px solid ${pendVenda!==undefined?'var(--amber)':'var(--gray-200)'};border-radius:6px;font-size:13px;text-align:center;background:${pendVenda!==undefined?'var(--amber-light)':'var(--gray-50)'};"
+            >
+          </td>
+          <td id="margem-row-${bc}" style="font-size:13px;font-weight:700;color:${margemColor};white-space:nowrap;">
+            ${margemTxt}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  };
+
+  window.markPriceChange = (input, bc, field) => {
+    const parsed = parseFloat(input.value);
+    if (!pendingPriceChanges[bc]) pendingPriceChanges[bc] = {};
+    if (!isNaN(parsed) && parsed >= 0) {
+      pendingPriceChanges[bc][field] = parsed;
+      input.style.borderColor = field === 'precoCusto' ? 'var(--blue)' : 'var(--amber)';
+      input.style.background = field === 'precoCusto' ? 'var(--blue-light)' : 'var(--amber-light)';
+    } else {
+      delete pendingPriceChanges[bc][field];
+      input.style.borderColor = 'var(--red)';
+    }
+  };
+
+  window.updateMargemRow = (bc) => {
+    const custoInput = document.getElementById(`price-custo-${bc}`);
+    const vendaInput = document.getElementById(`price-venda-${bc}`);
+    const margemCell = document.getElementById(`margem-row-${bc}`);
+    if (!custoInput || !vendaInput || !margemCell) return;
+    const custo = parseFloat(custoInput.value) || 0;
+    const venda = parseFloat(vendaInput.value) || 0;
+    if (custo > 0 && venda > 0) {
+      const margem = ((venda - custo) / custo * 100);
+      const lucro = venda - custo;
+      margemCell.style.color = margem >= 0 ? 'var(--green)' : 'var(--red)';
+      margemCell.innerHTML = `${margem.toFixed(1)}%<br><span style="font-size:11px;font-weight:400;">+${fmt(lucro)}</span>`;
+    } else {
+      margemCell.style.color = 'var(--gray-400)';
+      margemCell.textContent = '—';
+    }
+  };
+
+  window.savePriceAdjustments = () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const count = Object.keys(pendingPriceChanges).filter(bc => Object.keys(pendingPriceChanges[bc]).length > 0).length;
+    if (!count) { toast('Nenhuma alteração pendente.'); return; }
+    const updates = {};
+    Object.entries(pendingPriceChanges).forEach(([bc, fields]) => {
+      Object.entries(fields).forEach(([field, val]) => {
+        updates[`produtos/${user.uid}/${bc}/${field}`] = val;
+      });
+    });
+    update(ref(db), updates).then(() => {
+      toast(`✅ Preços de ${count} produto(s) atualizados!`);
+      pendingPriceChanges = {};
       loadProducts();
     }).catch(err => toast('Erro: ' + err.message));
   };
@@ -939,33 +1095,53 @@
   window.saveProduct = () => {
     const bc = document.getElementById('newProductBarcode').value.trim();
     const name = document.getElementById('newProductName').value.trim();
+    const cost = parseFloat(document.getElementById('newProductCost').value) || 0;
     const price = parseFloat(document.getElementById('newProductPrice').value);
     const unit = document.getElementById('newProductUnit').value;
     const cat = document.getElementById('newProductCategory').value;
     const stock = parseFloat(document.getElementById('newProductStock').value) || 0;
     if (!bc || !name || isNaN(price) || price <= 0 || !cat) { toast('Preencha todos os campos.'); return; }
     const user = auth.currentUser;
-    set(ref(db, `produtos/${user.uid}/${bc}`), { nome: name, preco: price, unidade: unit, categoria: cat, estoque: stock })
+    set(ref(db, `produtos/${user.uid}/${bc}`), { nome: name, precoCusto: cost, preco: price, unidade: unit, categoria: cat, estoque: stock })
       .then(() => {
         toast('Produto salvo!');
-        ['newProductBarcode','newProductName','newProductPrice','newProductStock'].forEach(id => document.getElementById(id).value = '');
+        ['newProductBarcode','newProductName','newProductCost','newProductPrice','newProductStock'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('newProductUnit').value = 'unidade';
         document.getElementById('newProductCategory').value = '';
         document.getElementById('addProductBtn').textContent = 'Salvar Produto';
         document.getElementById('newProductBarcode').disabled = false;
+        document.getElementById('margemCadastroInfo').style.display = 'none';
       });
+  };
+
+  window.calcMargemCadastro = () => {
+    const cost = parseFloat(document.getElementById('newProductCost').value) || 0;
+    const price = parseFloat(document.getElementById('newProductPrice').value) || 0;
+    const div = document.getElementById('margemCadastroInfo');
+    if (cost > 0 && price > 0) {
+      const margem = ((price - cost) / cost * 100);
+      const lucro = price - cost;
+      div.style.display = 'block';
+      div.style.background = margem >= 0 ? 'var(--green-light)' : 'var(--red-light)';
+      div.style.color = margem >= 0 ? 'var(--green)' : 'var(--red)';
+      div.textContent = `Lucro: ${fmt(lucro)} | Margem: ${margem.toFixed(1)}%`;
+    } else {
+      div.style.display = 'none';
+    }
   };
 
   window.editProduct = bc => {
     const p = productsDatabase[bc];
     document.getElementById('newProductBarcode').value = bc;
     document.getElementById('newProductName').value = p.nome;
+    document.getElementById('newProductCost').value = p.precoCusto || '';
     document.getElementById('newProductPrice').value = p.preco;
     document.getElementById('newProductUnit').value = p.unidade;
     document.getElementById('newProductCategory').value = p.categoria;
     document.getElementById('newProductStock').value = p.estoque||0;
     document.getElementById('newProductBarcode').disabled = true;
     document.getElementById('addProductBtn').textContent = 'Atualizar Produto';
+    calcMargemCadastro();
     showPage('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
