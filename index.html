@@ -1058,8 +1058,10 @@
     const newQty = item.quantidade + delta;
     if (newQty <= 0) { removeItemFromActiveSale(numero); return; }
     const productCode = getProductCode(item.codigo);
+    // Preserva preço unitário atual (pode ter sido editado), não reverte para o original
+    const precoUnitAtual = item.quantidade > 0 ? item.preco / item.quantidade : productsDatabase[productCode].preco;
     item.quantidade = newQty;
-    item.preco = productsDatabase[productCode].preco * newQty;
+    item.preco = precoUnitAtual * newQty;
     activeSaleItems[idx] = item;
     updateActiveSaleDisplay();
     renderProductGrid();
@@ -1077,23 +1079,140 @@
       section.style.display = 'block';
       empty.style.display = 'none';
     }
-    itemsDiv.innerHTML = activeSaleItems.map(item => `
-      <div class="sale-item">
-        <div class="sale-item-info">
-          <div class="sale-item-name">${item.nome}</div>
-          <div class="sale-item-qty">${item.unidade==='kilo'?(item.quantidade*1000).toFixed(0)+'g':item.quantidade+' un'}</div>
+    itemsDiv.innerHTML = activeSaleItems.map(item => {
+      const productCode = getProductCode(item.codigo);
+      const precoOriginal = productsDatabase[productCode]?.preco || 0;
+      const precoUnitAtual = item.quantidade > 0 ? item.preco / item.quantidade : 0;
+      const precoAlterado = Math.abs(precoUnitAtual - precoOriginal) > 0.001;
+      return `
+      <div class="sale-item" style="flex-wrap:wrap;gap:6px;">
+        <div class="sale-item-info" style="width:100%;">
+          <div class="sale-item-name">${item.nome}
+            ${precoAlterado ? `<span class="badge badge-amber" style="font-size:10px;margin-left:4px;">preço editado</span>` : ''}
+          </div>
+          <div class="sale-item-qty">${item.unidade==='kilo'?(item.quantidade*1000).toFixed(0)+'g':item.quantidade+' un'}
+            ${precoAlterado ? `<span style="font-size:11px;color:var(--gray-400);text-decoration:line-through;margin-left:4px;">${fmt(precoOriginal * item.quantidade)}</span>` : ''}
+          </div>
         </div>
-        ${item.unidade !== 'kilo' ? `
-          <div class="qty-ctrl">
-            <button class="qty-btn" onclick="adjustActiveItemQty(${item.numero},-1)">−</button>
-            <span class="qty-num">${item.quantidade}</span>
-            <button class="qty-btn" onclick="adjustActiveItemQty(${item.numero},1)">+</button>
-          </div>` : ''}
-        <div class="sale-item-price">${fmt(item.preco)}</div>
-        <button class="qty-btn" onclick="removeItemFromActiveSale(${item.numero})" style="color:var(--red);border-color:var(--red-light);background:var(--red-light);">✕</button>
-      </div>`).join('');
+
+        <div style="display:flex;align-items:center;gap:6px;flex:1;flex-wrap:wrap;">
+          ${item.unidade !== 'kilo' ? `
+            <div class="qty-ctrl">
+              <button class="qty-btn" onclick="adjustActiveItemQty(${item.numero},-1)">−</button>
+              <span class="qty-num">${item.quantidade}</span>
+              <button class="qty-btn" onclick="adjustActiveItemQty(${item.numero},1)">+</button>
+            </div>` : ''}
+
+          <!-- Preço total editável -->
+          <div style="display:flex;align-items:center;gap:4px;margin-left:auto;">
+            <span style="font-size:12px;color:var(--gray-600);">R$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value="${item.preco.toFixed(2)}"
+              data-numero="${item.numero}"
+              onchange="updateItemPrice(${item.numero}, this.value)"
+              style="width:80px;padding:5px 6px;border:1.5px solid ${precoAlterado?'var(--amber)':'var(--gray-200)'};border-radius:6px;font-size:13px;font-weight:600;text-align:center;background:${precoAlterado?'var(--amber-light)':'white'};color:var(--gray-900);"
+              title="Preço total do item"
+            >
+          </div>
+          <button class="qty-btn" onclick="removeItemFromActiveSale(${item.numero})" style="color:var(--red);border-color:var(--red-light);background:var(--red-light);">✕</button>
+        </div>
+
+        <!-- Calculadora de preço unitário -->
+        <div style="width:100%;background:var(--gray-50);border-radius:8px;padding:8px 10px;border:1px solid var(--gray-100);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--gray-600);white-space:nowrap;">🧮 Calcular unit.:</span>
+          <span style="font-size:12px;color:var(--gray-600);">R$</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="Preço total"
+            id="calc-preco-${item.numero}"
+            oninput="calcUnitario(${item.numero})"
+            style="width:80px;padding:5px 6px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:13px;text-align:center;background:white;"
+          >
+          <span style="font-size:12px;color:var(--gray-600);">÷</span>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            placeholder="Qtde"
+            id="calc-qtde-${item.numero}"
+            oninput="calcUnitario(${item.numero})"
+            style="width:60px;padding:5px 6px;border:1.5px solid var(--gray-200);border-radius:6px;font-size:13px;text-align:center;background:white;"
+          >
+          <span style="font-size:12px;color:var(--gray-600);">=</span>
+          <span id="calc-result-${item.numero}" style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;">—</span>
+          <button
+            class="btn-sm btn-primary"
+            onclick="applyCalcPrice(${item.numero})"
+            style="margin-left:auto;font-size:12px;padding:5px 10px;"
+            title="Aplicar este preço unitário ao item">
+            Aplicar
+          </button>
+        </div>
+      </div>`;
+    }).join('');
     document.getElementById('currentSaleTotal').textContent = fmt(total);
   }
+
+  window.updateItemPrice = (numero, novoPrecoTotal) => {
+    const idx = activeSaleItems.findIndex(i => i.numero === numero);
+    if (idx === -1) return;
+    const parsed = parseFloat(novoPrecoTotal);
+    if (isNaN(parsed) || parsed < 0) { toast('Preço inválido.'); updateActiveSaleDisplay(); return; }
+    activeSaleItems[idx].preco = parsed;
+    const total = activeSaleItems.reduce((s, i) => s + i.preco, 0);
+    document.getElementById('currentSaleTotal').textContent = fmt(total);
+    const productCode = getProductCode(activeSaleItems[idx].codigo);
+    const precoOriginal = productsDatabase[productCode]?.preco || 0;
+    const precoUnitAtual = activeSaleItems[idx].quantidade > 0 ? parsed / activeSaleItems[idx].quantidade : 0;
+    const precoAlterado = Math.abs(precoUnitAtual - precoOriginal) > 0.001;
+    const input = document.querySelector(`input[data-numero="${numero}"]`);
+    if (input) {
+      input.style.borderColor = precoAlterado ? 'var(--amber)' : 'var(--gray-200)';
+      input.style.background = precoAlterado ? 'var(--amber-light)' : 'white';
+    }
+  };
+
+  // Calculadora: preço total ÷ quantidade = preço unitário
+  window.calcUnitario = (numero) => {
+    const precoInput = document.getElementById(`calc-preco-${numero}`);
+    const qtdeInput = document.getElementById(`calc-qtde-${numero}`);
+    const result = document.getElementById(`calc-result-${numero}`);
+    if (!precoInput || !qtdeInput || !result) return;
+    const preco = parseFloat(precoInput.value);
+    const qtde = parseFloat(qtdeInput.value);
+    if (!isNaN(preco) && !isNaN(qtde) && qtde > 0 && preco >= 0) {
+      const unitario = preco / qtde;
+      result.textContent = fmt(unitario) + '/un';
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = '—';
+      result.style.color = 'var(--blue)';
+    }
+  };
+
+  // Aplica o preço unitário calculado × quantidade do item na venda
+  window.applyCalcPrice = (numero) => {
+    const precoInput = document.getElementById(`calc-preco-${numero}`);
+    const qtdeInput = document.getElementById(`calc-qtde-${numero}`);
+    if (!precoInput || !qtdeInput) return;
+    const preco = parseFloat(precoInput.value);
+    const qtde = parseFloat(qtdeInput.value);
+    if (isNaN(preco) || isNaN(qtde) || qtde <= 0 || preco < 0) {
+      toast('Preencha preço e quantidade para calcular.'); return;
+    }
+    const idx = activeSaleItems.findIndex(i => i.numero === numero);
+    if (idx === -1) return;
+    const unitario = preco / qtde;
+    const novoTotal = unitario * activeSaleItems[idx].quantidade;
+    activeSaleItems[idx].preco = novoTotal;
+    toast(`Preço unitário: ${fmt(unitario)}/un → Total: ${fmt(novoTotal)}`);
+    updateActiveSaleDisplay();
+  };
 
   document.getElementById('selectClientSale').addEventListener('input', function() {
     const opt = Array.from(document.getElementById('clientListDatalist').options).find(o => o.value === this.value);
